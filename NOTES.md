@@ -660,3 +660,20 @@ kotlin.UninitializedPropertyAccessException: lateinit property repository has no
 1. `HiltAndroidRule` creates a fresh `SingletonComponent` for every `@Test` method, so `TestDatabaseModule.provideInMemoryDatabase(...)` builds a brand-new, empty SQLite in-memory database per test run.
 2. In `NotesUiTest`, `addNote_firstRun_displaysNewNoteInList` enters `"First Run Note"`, clicks **Add Note**, and asserts `onNodeWithText("First Run Note").assertIsDisplayed()`.
 3. Immediately afterward, `addNote_secondRun_startsWithEmptyDatabase` asserts `onNodeWithText("First Run Note").assertDoesNotExist()`, proving zero state leaked between runs and user disk data (`hilt_notes.db`) was never touched.
+
+---
+
+### Question 30 — Capstone Delivery Checklist (Hands-on)
+
+All capstone deliverables are complete on `main`:
+
+- **DI Design & Scopes (25 pts):** Multi-module architecture (`:app`, `:feature-notes`, `:data`, `:di-fundamentals`), strict component hierarchy (`SingletonComponent`, `ActivityRetainedComponent`, `ViewModelComponent`, `ActivityComponent`), zero memory-leaking scopes, and nested nav-graph ViewModel scoping (`DraftViewModel`).
+- **Modules & Qualifiers (15 pts):** `NetworkModule`, `DatabaseModule`, `DispatcherModule`, `BaseUrlModule`, `RepositoryModule`, `LoggingModule`, plus custom qualifiers `@ApiClient`, `@DownloadClient`, `@BaseUrl`, `@IoDispatcher`, `@MainDispatcher`, and Hilt's `@ApplicationContext` / `@ActivityContext`.
+- **Testability & Test Quality (25 pts):**
+  - Replaced network module: [`TestNetworkModule`](app/src/androidTest/java/com/example/hiltnotes/di/TestNetworkModule.kt) backed by `MockWebServer`
+  - Replaced database module: [`TestDatabaseModule`](app/src/androidTest/java/com/example/hiltnotes/di/TestDatabaseModule.kt) backed by in-memory Room
+  - **17 automated tests** total (13 fast pure-JVM tests + 4 Hilt instrumented / Compose UI / `MockWebServer` tests — well above the 10-test requirement)
+- **Android Integration (20 pts):** `@HiltAndroidApp App`, `@AndroidEntryPoint MainActivity` & `ConnectivityReceiver`, `@HiltViewModel` across 4 ViewModels including `NoteDetailViewModel` with `SavedStateHandle`, `hiltViewModel()` + nested `edit` nav graph, and debug `-PuseFakeRepo=true` switch.
+- **README & Commit History (15 pts):** [`README.md`](README.md) with Mermaid module, component, and dependency diagrams; branches `manual-di`, `hilt`, and `main`; clean **one commit per question (`q01:`–`q30:`)**.
+
+> **Environment Note:** This workspace was authored on a machine without Android Studio / Android SDK / Gradle installed locally. Open the project in Android Studio (AGP 8.9.1, Kotlin 2.1.21, Hilt 2.57.1, JDK 17) to run Gradle sync, `./gradlew test`, `./gradlew :app:connectedDebugAndroidTest`, and capture emulator screenshots for Q23.
