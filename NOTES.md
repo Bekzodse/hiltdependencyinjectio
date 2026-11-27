@@ -378,3 +378,35 @@ Injecting `@IoDispatcher` instead of hard-coding `Dispatchers.IO` lets `NoteRepo
 **Key surprises (cells marked ❌ above):**
 1. `@ViewModelScoped` **cannot** be injected into an `Activity` at all — `ViewModelComponent` and `ActivityComponent` are sibling children of `ActivityRetainedComponent`. Attempting to inject `@ViewModelScoped` in an Activity causes `[Dagger/IncompatiblyScopedBindings]` at compile time.
 2. `@ActivityRetainedScoped` is shared between an `Activity` and its `ViewModel`s **and survives configuration changes (rotation)**, but launching a *different* Activity (`Activity 2`) creates a **new** `ActivityRetainedComponent` (`#2`), unlike `@Singleton` which stays `#1` across the entire process.
+
+---
+
+### Question 17 — Hilt Component Hierarchy, Lifetimes & Visibility Rules (Theoretical, Slides 27–29)
+
+*(Note: Question 17 was duplicated as Question 16 in the practice prompt text; included here for completeness of Slides 27–29.)*
+
+#### Component Hierarchy
+```mermaid
+flowchart TD
+    SingletonComponent["SingletonComponent (@Singleton)<br/>App#onCreate -> Process death"]
+    ActivityRetainedComponent["ActivityRetainedComponent (@ActivityRetainedScoped)<br/>1st Activity#onCreate -> Final Activity#onDestroy (survives rotation)"]
+    ServiceComponent["ServiceComponent (@ServiceScoped)<br/>Service#onCreate -> Service#onDestroy"]
+    ViewModelComponent["ViewModelComponent (@ViewModelScoped)<br/>ViewModel created -> ViewModel#onCleared"]
+    ActivityComponent["ActivityComponent (@ActivityScoped)<br/>Activity#onCreate -> Activity#onDestroy"]
+    FragmentComponent["FragmentComponent (@FragmentScoped)<br/>Fragment#onAttach -> Fragment#onDestroy"]
+    ViewComponent["ViewComponent (@ViewScoped)<br/>View#super -> View destroyed"]
+    ViewWithFragmentComponent["ViewWithFragmentComponent (@ViewScoped)"]
+
+    SingletonComponent --> ActivityRetainedComponent
+    SingletonComponent --> ServiceComponent
+    ActivityRetainedComponent --> ViewModelComponent
+    ActivityRetainedComponent --> ActivityComponent
+    ActivityComponent --> FragmentComponent
+    ActivityComponent --> ViewComponent
+    FragmentComponent --> ViewWithFragmentComponent
+```
+
+#### Core Rules
+1. **Downward visibility only:** Child components can access every binding in their ancestors (e.g., `ViewModelComponent` can inject `@Singleton` and `@ActivityRetainedScoped` bindings), but parents can **never** access child bindings, and siblings (`ActivityComponent` vs `ViewModelComponent`) cannot access each other's bindings.
+2. **Scope must match `@InstallIn`:** A `@Provides` or `@Binds` method inside `@InstallIn(XComponent::class)` can only use no scope or the exact scope annotation belonging to `XComponent`.
+3. **Default is unscoped:** Unscoped bindings are available in every component (or the installed component and its children) and produce a new instance on every injection.
