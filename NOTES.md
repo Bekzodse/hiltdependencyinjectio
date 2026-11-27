@@ -222,3 +222,24 @@ kotlin.UninitializedPropertyAccessException: lateinit property logger has not be
 **Why field injection is forced on Android classes while constructor injection is preferred everywhere else:**
 - Android framework classes (`Activity`, `Fragment`, `Service`, `BroadcastReceiver`) are instantiated by the Android OS via reflection using their zero-argument constructor (`Class.newInstance()`), so Hilt cannot call a custom constructor; it must inject fields *after* construction via lifecycle hooks (`onCreate`, `onAttach`, `onReceive`).
 - Everywhere else (repositories, use cases, helpers, `@HiltViewModel`s), **constructor injection** is preferred because dependencies can be immutable `val`s, are non-nullable (no `lateinit` crashes), are guaranteed initialized before `init {}` runs, and make unit testing trivial by simply passing fakes to `MyClass(fakeDep)`.
+
+---
+
+### Question 9 — Constructor Injection Chain (`A -> B -> C`) & Unscoped Identity (Hands-on)
+
+**Implementation:**
+- [`app/src/main/java/com/example/hiltnotes/experiments/ChainExperiment.kt`](app/src/main/java/com/example/hiltnotes/experiments/ChainExperiment.kt)
+- [`app/src/main/java/com/example/hiltnotes/MainActivity.kt`](app/src/main/java/com/example/hiltnotes/MainActivity.kt) (`firstA: A` and `secondA: A`)
+
+**Observed Creation Order & Identity:**
+```text
+ChainExperiment: created C (1149319664)
+ChainExperiment: created B (2093631819)
+ChainExperiment: created A (2074407503)
+ChainExperiment: created C (999966131)
+ChainExperiment: created B (1989780873)
+ChainExperiment: created A (1480010240)
+[MainActivity] Q9 same A instance? false (firstA=2074407503, secondA=1480010240)
+```
+1. **Creation order:** Always bottom-up from the leaf dependency to the root: **`C, B, A`** (because `A(b)` cannot be constructed until `B(c)` exists, which cannot be constructed until `C()` exists).
+2. **Are `firstA` and `secondA` the same object?** **No (`firstA === secondA` is `false`).** Because none of `A`, `B`, or `C` carry a scope annotation (like `@Singleton` or `@ActivityScoped`), Dagger generates `new A(new B(new C()))` fresh for **every** injection site — creating two distinct `A`s, two `B`s, and two `C`s.

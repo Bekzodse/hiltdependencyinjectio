@@ -17,6 +17,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.hiltnotes.di.AppContainer
+import com.example.hiltnotes.experiments.A
 import com.example.hiltnotes.logging.Logger
 import com.example.hiltnotes.ui.GitHubUsersScreen
 import com.example.hiltnotes.ui.GitHubUsersViewModel
@@ -33,9 +34,18 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var logger: Logger
 
+    @Inject
+    lateinit var firstA: A
+
+    @Inject
+    lateinit var secondA: A
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        logger.log("MainActivity", "onCreate injected with Logger")
+        logger.log(
+            "MainActivity",
+            "Q9 same A instance? ${firstA === secondA} (firstA=${System.identityHashCode(firstA)}, secondA=${System.identityHashCode(secondA)})"
+        )
         val container = (application as App).container
         setContent {
             MaterialTheme {
