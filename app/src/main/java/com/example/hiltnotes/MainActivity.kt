@@ -17,16 +17,25 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.hiltnotes.di.AppContainer
+import com.example.hiltnotes.logging.Logger
 import com.example.hiltnotes.ui.GitHubUsersScreen
 import com.example.hiltnotes.ui.GitHubUsersViewModel
 import com.example.hiltnotes.ui.NoteDetailScreen
 import com.example.hiltnotes.ui.NoteDetailViewModel
 import com.example.hiltnotes.ui.NotesListScreen
 import com.example.hiltnotes.ui.NotesViewModel
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @Inject
+    lateinit var logger: Logger
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        logger.log("MainActivity", "onCreate injected with Logger")
         val container = (application as App).container
         setContent {
             MaterialTheme {

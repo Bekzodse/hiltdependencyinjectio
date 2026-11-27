@@ -190,3 +190,35 @@ At compile time, `hilt-compiler` generates `abstract class Hilt_App extends Appl
 1. Creates an `ApplicationComponentManager` holding the root `DaggerApp_HiltComponents_SingletonC` (`SingletonComponent`), initialized with `ApplicationContextModule(Hilt_App.this)`.
 2. Overrides `onCreate()` to call `hiltInternalInject()` (which invokes `generatedComponent().injectApp(this)`) **before** `super.onCreate()` and your `App.onCreate()` body execute, guaranteeing injected fields are ready inside `onCreate()`.
 3. Implements `componentManager()` and `generatedComponent()` so all child Android components (`Activity`, `ViewModel`, `BroadcastReceiver`, etc.) can walk up to the singleton graph via `applicationContext`.
+
+---
+
+### Question 8 — `@AndroidEntryPoint` & Field Injection Failure Modes (Hands-on)
+
+**Implementation:**
+- [`app/src/main/java/com/example/hiltnotes/logging/Logger.kt`](app/src/main/java/com/example/hiltnotes/logging/Logger.kt)
+- [`app/src/main/java/com/example/hiltnotes/MainActivity.kt`](app/src/main/java/com/example/hiltnotes/MainActivity.kt) (`@AndroidEntryPoint` + `@Inject lateinit var logger: Logger`)
+
+**Failure Mode 1 — Making the injected field `private` (`@Inject private lateinit var logger: Logger`):**
+Compile-time Dagger error:
+```text
+error: Dagger does not support injection into private fields
+    private com.example.hiltnotes.logging.Logger logger;
+                                                 ^
+  com.example.hiltnotes.MainActivity is injected at
+      com.example.hiltnotes.MainActivity_GeneratedInjector.injectMainActivity(com.example.hiltnotes.MainActivity)
+```
+*(Because Dagger generates a separate `MainActivity_MembersInjector` class in the same package to assign `instance.logger = ...` without slow Java reflection, the field cannot be `private`.)*
+
+**Failure Mode 2 — Removing `@AndroidEntryPoint` from `MainActivity`:**
+Compiles without error, then crashes immediately in `onCreate` when touching `logger`:
+```text
+kotlin.UninitializedPropertyAccessException: lateinit property logger has not been initialized
+    at com.example.hiltnotes.MainActivity.getLogger(MainActivity.kt:28)
+    at com.example.hiltnotes.MainActivity.onCreate(MainActivity.kt:33)
+```
+*(Without `@AndroidEntryPoint`, Hilt does not generate `Hilt_MainActivity` or invoke `MembersInjector.injectMembers(this)` during `super.onCreate()`.)*
+
+**Why field injection is forced on Android classes while constructor injection is preferred everywhere else:**
+- Android framework classes (`Activity`, `Fragment`, `Service`, `BroadcastReceiver`) are instantiated by the Android OS via reflection using their zero-argument constructor (`Class.newInstance()`), so Hilt cannot call a custom constructor; it must inject fields *after* construction via lifecycle hooks (`onCreate`, `onAttach`, `onReceive`).
+- Everywhere else (repositories, use cases, helpers, `@HiltViewModel`s), **constructor injection** is preferred because dependencies can be immutable `val`s, are non-nullable (no `lateinit` crashes), are guaranteed initialized before `init {}` runs, and make unit testing trivial by simply passing fakes to `MyClass(fakeDep)`.
