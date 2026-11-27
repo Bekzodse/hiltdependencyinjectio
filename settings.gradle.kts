@@ -22,3 +22,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "HiltDependencyInjection"
 include(":di-fundamentals")
+include(":app")
