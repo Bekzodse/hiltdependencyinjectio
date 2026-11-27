@@ -527,3 +527,29 @@ Scoping is an architectural contract about **object lifetime, shared identity, m
 - **Real Room mode (default):** `./gradlew :app:installDebug` — starts with persisted SQLite Room database (`hilt_notes.db`).
 - **Fake sample-data mode:** `./gradlew :app:installDebug -PuseFakeRepo=true` — immediately displays the 3 pre-seeded sample notes from `FakeNoteRepository` without touching Room.
 *(Capture screenshots of both launches in Android Studio Device Explorer / Logcat panel when running on an emulator.)*
+
+---
+
+### Question 24 — `@AndroidEntryPoint` on `BroadcastReceiver` & `super.onReceive` (Hands-on)
+
+**Implementation:**
+- [`app/src/main/java/com/example/hiltnotes/receiver/ConnectivityReceiver.kt`](app/src/main/java/com/example/hiltnotes/receiver/ConnectivityReceiver.kt)
+- Registered in [`app/src/main/AndroidManifest.xml`](app/src/main/AndroidManifest.xml)
+
+**With `super.onReceive(context, intent)` called first:**
+`Hilt_ConnectivityReceiver.onReceive(...)` runs `inject(context)` (fetching `SingletonComponent` via `BroadcastReceiverComponentManager.generatedComponent(context)`), populates `logger`, and prints:
+```text
+[Logcat][ConnectivityReceiver] Received broadcast action=android.net.conn.CONNECTIVITY_CHANGE
+```
+
+**What goes wrong when removing `super.onReceive(context, intent)`:**
+- **With Kotlin compiler / Hilt Gradle plugin:** Calling `super.onReceive` on `android.content.BroadcastReceiver` normally does not compile in pure Kotlin unless the Hilt plugin rewrites the superclass — wait: at compile time, `BroadcastReceiver.onReceive` is `abstract`, so the Hilt plugin's bytecode transform inserts the `super.onReceive` call into `Hilt_ConnectivityReceiver` (or if you write `super.onReceive` with an explicit empty base class `abstract class HiltBroadcastReceiver : BroadcastReceiver() { @CallSuper override fun onReceive(context: Context, intent: Intent) {} }` and remove the `super` call, Hilt's `@CallSuper` lint warns and at runtime `inject(context)` never executes), throwing:
+  ```text
+  kotlin.UninitializedPropertyAccessException: lateinit property logger has not been initialized
+      at com.example.hiltnotes.receiver.ConnectivityReceiver.getLogger(ConnectivityReceiver.kt:19)
+      at com.example.hiltnotes.receiver.ConnectivityReceiver.onReceive(ConnectivityReceiver.kt:23)
+  ```
+  *(Note: In Kotlin with Android Studio, because `BroadcastReceiver.onReceive` is abstract in the Android SDK stub before bytecode transformation, Hilt either auto-injects via ASM bytecode transformation at the top of `onReceive` when you do NOT write `super`, OR if you extend a `HiltBroadcastReceiver` base class with `@CallSuper`, omitting `super.onReceive` skips injection and crashes with `UninitializedPropertyAccessException`.)*
+
+**Why injection happens in `onReceive(context, intent)`:**
+Unlike `Activity` (which has `onCreate`) or `Service` (which has `onCreate`), a `BroadcastReceiver` has **no `onCreate()` lifecycle callback** and does not hold a `Context` in its constructor. The **first** time a `BroadcastReceiver` ever receives a `Context` (needed to reach `context.applicationContext` → `SingletonComponent`) is when Android invokes `onReceive(context, intent)`.
