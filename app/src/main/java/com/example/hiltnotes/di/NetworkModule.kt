@@ -49,10 +49,13 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideRetrofit(@ApiClient okHttpClient: OkHttpClient): Retrofit {
-        println("NetworkModule: creating Retrofit")
+    fun provideRetrofit(
+        @ApiClient okHttpClient: OkHttpClient,
+        @BaseUrl baseUrl: String
+    ): Retrofit {
+        println("NetworkModule: creating Retrofit for $baseUrl")
         return Retrofit.Builder()
-            .baseUrl("https://api.github.com/")
+            .baseUrl(baseUrl)
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()

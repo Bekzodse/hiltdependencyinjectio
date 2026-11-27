@@ -341,3 +341,17 @@ Once every `OkHttpClient` provider carries a qualifier, an unqualified `OkHttpCl
 **Two reasons custom `@Qualifier` annotations beat `@Named("...")` strings:**
 1. **Compile-time typo safety:** A typo like `@Named("downlaod")` silently compiles as a wrong string key until Dagger fails with a confusing missing-binding error (or worse, matches an unintended string), whereas `@DownloadClient` is checked by the Kotlin compiler with IDE autocomplete and safe refactoring (`Rename`).
 2. **Namespace & discoverability:** Custom annotations are typed symbols with KDoc, Find Usages, and package scoping — eliminating accidental string collisions across modules and teams.
+
+---
+
+### Question 15 — `@BaseUrl` and `@IoDispatcher` Qualifiers + JVM `StandardTestDispatcher` Test (Hands-on)
+
+**Implementation:**
+- [`app/src/main/java/com/example/hiltnotes/di/Qualifiers.kt`](app/src/main/java/com/example/hiltnotes/di/Qualifiers.kt) (`@BaseUrl`, `@IoDispatcher`, `@MainDispatcher`)
+- [`app/src/main/java/com/example/hiltnotes/di/DispatcherModule.kt`](app/src/main/java/com/example/hiltnotes/di/DispatcherModule.kt) (`DispatcherModule`, `BaseUrlModule`)
+- [`app/src/main/java/com/example/hiltnotes/di/NetworkModule.kt`](app/src/main/java/com/example/hiltnotes/di/NetworkModule.kt) (`provideRetrofit` injects `@BaseUrl baseUrl: String`)
+- [`app/src/main/java/com/example/hiltnotes/data/NoteRepository.kt`](app/src/main/java/com/example/hiltnotes/data/NoteRepository.kt) (`withContext(ioDispatcher)`)
+- [`app/src/test/java/com/example/hiltnotes/data/NoteRepositoryDispatcherTest.kt`](app/src/test/java/com/example/hiltnotes/data/NoteRepositoryDispatcherTest.kt)
+
+**Observation:**
+Injecting `@IoDispatcher` instead of hard-coding `Dispatchers.IO` lets `NoteRepositoryDispatcherTest` pass `StandardTestDispatcher(testScheduler)` directly to `RoomNoteRepository(dao, testDispatcher)`. The test runs deterministically on the JVM with zero Android classes, zero Robolectric, and zero Hilt overhead — and injecting `@BaseUrl` allows instrumented tests (Q30) to redirect Retrofit to `MockWebServer` without modifying `NetworkModule`'s `OkHttpClient` or `Retrofit` builder.

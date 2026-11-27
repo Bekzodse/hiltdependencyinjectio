@@ -1,7 +1,13 @@
 package com.example.hiltnotes.data
 
+import com.example.hiltnotes.di.IoDispatcher
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicInteger
+import javax.inject.Inject
+import javax.inject.Singleton
 
 interface NoteRepository {
     fun observeNotes(): Flow<List<NoteEntity>>
@@ -10,8 +16,10 @@ interface NoteRepository {
     suspend fun deleteNote(note: NoteEntity)
 }
 
-class RoomNoteRepository(
-    private val noteDao: NoteDao
+@Singleton
+class RoomNoteRepository @Inject constructor(
+    private val noteDao: NoteDao,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : NoteRepository {
 
     init {
@@ -21,13 +29,17 @@ class RoomNoteRepository(
 
     override fun observeNotes(): Flow<List<NoteEntity>> = noteDao.observeAll()
 
-    override suspend fun getNote(id: Long): NoteEntity? = noteDao.getById(id)
-
-    override suspend fun addNote(title: String, body: String): Long {
-        return noteDao.upsert(NoteEntity(title = title.trim(), body = body.trim()))
+    override suspend fun getNote(id: Long): NoteEntity? = withContext(ioDispatcher) {
+        noteDao.getById(id)
     }
 
-    override suspend fun deleteNote(note: NoteEntity) = noteDao.delete(note)
+    override suspend fun addNote(title: String, body: String): Long = withContext(ioDispatcher) {
+        noteDao.upsert(NoteEntity(title = title.trim(), body = body.trim()))
+    }
+
+    override suspend fun deleteNote(note: NoteEntity) = withContext(ioDispatcher) {
+        noteDao.delete(note)
+    }
 
     companion object {
         val creationCount = AtomicInteger(0)
@@ -39,9 +51,11 @@ interface GitHubRepository {
     suspend fun refreshUsers()
 }
 
-class DefaultGitHubRepository(
+@Singleton
+class DefaultGitHubRepository @Inject constructor(
     private val service: GitHubService,
-    private val userDao: GitHubUserDao
+    private val userDao: GitHubUserDao,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : GitHubRepository {
 
     init {
@@ -51,7 +65,7 @@ class DefaultGitHubRepository(
 
     override fun observeCachedUsers(): Flow<List<GitHubUserEntity>> = userDao.observeUsers()
 
-    override suspend fun refreshUsers() {
+    override suspend fun refreshUsers() = withContext(ioDispatcher) {
         val remote = service.getUsers().map {
             GitHubUserEntity(
                 id = it.id,
