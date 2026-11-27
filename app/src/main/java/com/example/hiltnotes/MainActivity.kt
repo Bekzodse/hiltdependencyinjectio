@@ -75,10 +75,8 @@ fun HiltNotesNavHost() {
         composable(
             route = "note/{noteId}",
             arguments = listOf(navArgument("noteId") { type = NavType.LongType })
-        ) { entry ->
-            val noteId = entry.arguments?.getLong("noteId") ?: -1L
+        ) {
             val vm: NoteDetailViewModel = hiltViewModel()
-            LaunchedEffect(noteId) { vm.load(noteId) }
             val note by vm.note.collectAsState()
             NoteDetailScreen(
                 note = note,

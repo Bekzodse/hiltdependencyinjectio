@@ -499,3 +499,16 @@ Scoping is an architectural contract about **object lifetime, shared identity, m
 | `MainActivity` NavHost wiring (`container` plumbing) | Requires passing `container` + 3 factory calls | Zero container plumbing; `hiltViewModel()` | Cleaner call sites |
 
 **Takeaway:** For a tiny 3-screen app, total lines across modules are similar (with extra features like dual `OkHttpClient`s and injectable dispatchers in `hilt`), **but** every new ViewModel or constructor dependency now costs **0 lines** of factory/container wiring instead of editing 3–4 files, and every module can be swapped independently in tests via `@TestInstallIn`.
+
+---
+
+### Question 22 — `NoteDetailViewModel` with `SavedStateHandle` (Hands-on)
+
+**Implementation:**
+- [`feature-notes/src/main/java/com/example/hiltnotes/ui/NoteDetailViewModel.kt`](feature-notes/src/main/java/com/example/hiltnotes/ui/NoteDetailViewModel.kt)
+- [`feature-notes/src/test/java/com/example/hiltnotes/ui/NoteDetailViewModelTest.kt`](feature-notes/src/test/java/com/example/hiltnotes/ui/NoteDetailViewModelTest.kt)
+
+**How it works & survives *Don't keep activities* / process recreation:**
+- `NavBackStackEntry` automatically populates its `SavedStateHandle` with the typed `navArgument("noteId") { type = NavType.LongType }` from route `note/{noteId}`, and Hilt's `ViewModelComponent` provides that `SavedStateHandle` directly into `@HiltViewModel`'s constructor.
+- Because the navigation back-stack entry's `Bundle` is saved and restored by Android's `SavedStateRegistry`, backgrounding the app with **Developer Options → Don't keep activities** enabled (or killing the process via `adb shell am kill com.example.hiltnotes`) recreates `NoteDetailViewModel` with `savedStateHandle["noteId"]` intact and reloads the exact same note from Room.
+- In JVM unit tests (`NoteDetailViewModelTest`), `SavedStateHandle(mapOf("noteId" to 7L))` is a plain JVM class (no Android framework needed), allowing direct constructor testing.
