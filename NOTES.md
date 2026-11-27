@@ -596,3 +596,21 @@ At **compile time**, Hilt's test annotation processor excludes `NetworkModule` f
 
 #### 3. Why a JVM Unit Test of an `@Inject constructor` Class Needs None of Them
 `@Inject` is just metadata on a completely normal Kotlin constructor. In a JVM unit test (`./gradlew test`), you simply call the constructor directly — `NotesViewModel(FakeNoteRepository())` or `RoomNoteRepository(FakeNoteDao(), testDispatcher)` — passing hand-made fakes without reflection, Android framework classes, `HiltTestApplication`, or an emulator. The tests execute in milliseconds instead of minutes.
+
+---
+
+### Question 27 — Pure JVM Unit Tests Without Hilt or Android (Hands-on)
+
+**Test files (zero Hilt, zero Android, zero emulator — run via `./gradlew test`):**
+- [`di-fundamentals/src/test/kotlin/com/example/difundamentals/CarTest.kt`](di-fundamentals/src/test/kotlin/com/example/difundamentals/CarTest.kt) (3 tests)
+- [`data/src/test/java/com/example/hiltnotes/data/NoteRepositoryDispatcherTest.kt`](data/src/test/java/com/example/hiltnotes/data/NoteRepositoryDispatcherTest.kt) (1 test)
+- [`data/src/test/java/com/example/hiltnotes/data/DefaultGitHubRepositoryTest.kt`](data/src/test/java/com/example/hiltnotes/data/DefaultGitHubRepositoryTest.kt) (2 tests)
+- [`feature-notes/src/test/java/com/example/hiltnotes/ui/NotesViewModelTest.kt`](feature-notes/src/test/java/com/example/hiltnotes/ui/NotesViewModelTest.kt) (2 tests)
+- [`feature-notes/src/test/java/com/example/hiltnotes/ui/NoteDetailViewModelTest.kt`](feature-notes/src/test/java/com/example/hiltnotes/ui/NoteDetailViewModelTest.kt) (1 test)
+- [`feature-notes/src/test/java/com/example/hiltnotes/ui/GitHubUsersViewModelTest.kt`](feature-notes/src/test/java/com/example/hiltnotes/ui/GitHubUsersViewModelTest.kt) (2 tests)
+- [`feature-notes/src/test/java/com/example/hiltnotes/ui/DraftViewModelTest.kt`](feature-notes/src/test/java/com/example/hiltnotes/ui/DraftViewModelTest.kt) (1 test)
+
+**Classes tested completely without Hilt and why:**
+- **`RoomNoteRepository` & `DefaultGitHubRepository`:** Both depend exclusively on interfaces (`NoteDao`, `GitHubService`, `GitHubUserDao`) and an injected `CoroutineDispatcher` — zero `Context`, zero Room builder, zero Retrofit builder.
+- **`NotesViewModel`, `NoteDetailViewModel`, `GitHubUsersViewModel`, `DraftViewModel`:** Every ViewModel receives interfaces (`NoteRepository`, `GitHubRepository`, `Logger`) and JVM-safe `SavedStateHandle` via constructor injection, so instantiating them with hand-made fakes and `StandardTestDispatcher` tests all business logic, error handling, and `StateFlow` emissions in milliseconds.
+- **Not tested on plain JVM (needs instrumented tests in Q28–Q30):** `MainActivity` Compose UI wiring, real SQLite Room queries (`AppDatabase`), Hilt module wiring (`@TestInstallIn`), and `ConnectivityReceiver`.
