@@ -2,8 +2,10 @@ package com.example.hiltnotes
 
 import android.app.Application
 import com.example.hiltnotes.di.AppContainer
+import dagger.hilt.android.HiltAndroidApp
 
-class NotesApp : Application() {
+@HiltAndroidApp
+class App : Application() {
     lateinit var container: AppContainer
         private set
 

@@ -27,7 +27,7 @@ import com.example.hiltnotes.ui.NotesViewModel
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val container = (application as NotesApp).container
+        val container = (application as App).container
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {

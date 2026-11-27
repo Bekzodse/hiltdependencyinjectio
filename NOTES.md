@@ -153,3 +153,40 @@ transformation rewrites the superclass automatically.
 Expected NotesApp to extend Hilt_NotesApp (or apply the Hilt Gradle plugin).
 ```
 *(At runtime if not caught by validation, `java.lang.ClassCastException: NotesApp cannot be cast to dagger.hilt.internal.GeneratedComponentManagerHolder` because the Hilt Gradle plugin is what performs ASM bytecode rewriting of `NotesApp : Application` → `NotesApp : Hilt_NotesApp` and `MainActivity : ComponentActivity` → `MainActivity : Hilt_MainActivity`.)*
+
+---
+
+### Question 7 — `@HiltAndroidApp`, Manifest Registration & Generated `Hilt_App` (Hands-on)
+
+**Implementation:**
+- [`app/src/main/java/com/example/hiltnotes/App.kt`](app/src/main/java/com/example/hiltnotes/App.kt) (`@HiltAndroidApp class App : Application()`)
+- [`app/src/main/AndroidManifest.xml`](app/src/main/AndroidManifest.xml) (`android:name=".App"`)
+
+**Experiment 1 — Removing `android:name=".App"` from `AndroidManifest.xml` (runtime crash):**
+When an `@AndroidEntryPoint` activity launches without the custom Hilt `Application` registered in the manifest, Android instantiates the default `android.app.Application`, which does not implement `GeneratedComponentManagerHolder`:
+```text
+java.lang.IllegalStateException: Hilt Activity must be attached to an @HiltAndroidApp Application.
+Found: class android.app.Application
+    at dagger.hilt.android.internal.managers.ActivityComponentManager.createComponent(ActivityComponentManager.java:89)
+    at dagger.hilt.android.internal.managers.ActivityComponentManager.generatedComponent(ActivityComponentManager.java:68)
+    at com.example.hiltnotes.Hilt_MainActivity.inject(Hilt_MainActivity.java:74)
+```
+
+**Experiment 2 — Restoring `android:name=".App"` and removing `@HiltAndroidApp` from `App`:**
+- **Build-time error** (if any `@AndroidEntryPoint` or `@HiltViewModel` exists in the app):
+  ```text
+  error: [Hilt]
+  The Android Gradle plugin found @AndroidEntryPoint classes, but no @HiltAndroidApp
+  Application class was found.
+  ```
+- **Runtime crash** (if triggered via component lookup):
+  ```text
+  java.lang.IllegalStateException: Hilt Activity must be attached to an @HiltAndroidApp Application.
+  Found: class com.example.hiltnotes.App
+  ```
+
+**What Hilt generates in `Hilt_App`:**
+At compile time, `hilt-compiler` generates `abstract class Hilt_App extends Application implements GeneratedComponentManagerHolder` (under `app/build/generated/ksp/debug/java/.../Hilt_App.java`) and the Hilt Gradle plugin transforms `App`'s bytecode so `App` extends `Hilt_App`. Inside `Hilt_App`:
+1. Creates an `ApplicationComponentManager` holding the root `DaggerApp_HiltComponents_SingletonC` (`SingletonComponent`), initialized with `ApplicationContextModule(Hilt_App.this)`.
+2. Overrides `onCreate()` to call `hiltInternalInject()` (which invokes `generatedComponent().injectApp(this)`) **before** `super.onCreate()` and your `App.onCreate()` body execute, guaranteeing injected fields are ready inside `onCreate()`.
+3. Implements `componentManager()` and `generatedComponent()` so all child Android components (`Activity`, `ViewModel`, `BroadcastReceiver`, etc.) can walk up to the singleton graph via `applicationContext`.
