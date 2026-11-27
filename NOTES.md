@@ -410,3 +410,27 @@ flowchart TD
 1. **Downward visibility only:** Child components can access every binding in their ancestors (e.g., `ViewModelComponent` can inject `@Singleton` and `@ActivityRetainedScoped` bindings), but parents can **never** access child bindings, and siblings (`ActivityComponent` vs `ViewModelComponent`) cannot access each other's bindings.
 2. **Scope must match `@InstallIn`:** A `@Provides` or `@Binds` method inside `@InstallIn(XComponent::class)` can only use no scope or the exact scope annotation belonging to `XComponent`.
 3. **Default is unscoped:** Unscoped bindings are available in every component (or the installed component and its children) and produce a new instance on every injection.
+
+---
+
+### Question 18 — Illegal Scope Hierarchy Compile-Time Errors (Hands-on)
+
+**Reference code:** [`app/src/main/java/com/example/hiltnotes/experiments/IllegalScopeExperiment.kt`](app/src/main/java/com/example/hiltnotes/experiments/IllegalScopeExperiment.kt)
+
+**Error 1 — `@Singleton` taking an `@ActivityScoped` dependency (`ActivityOnlyHelper`):**
+```text
+error: [Dagger/IncompatiblyScopedBindings] App_HiltComponents.SingletonC scoped with @Singleton may not reference bindings with different scopes:
+      @dagger.hilt.android.scopes.ActivityScoped class com.example.hiltnotes.experiments.ActivityOnlyHelper
+          com.example.hiltnotes.experiments.ActivityOnlyHelper is injected at
+              [App_HiltComponents.SingletonC] com.example.hiltnotes.experiments.IllegalSingletonHoldingActivityScoped(helper)
+```
+
+**Error 2 — `@Singleton` taking `@ActivityContext context: Context`:**
+```text
+error: [Dagger/MissingBinding] @dagger.hilt.android.qualifiers.ActivityContext android.content.Context cannot be provided without an @Provides-annotated method.
+      @dagger.hilt.android.qualifiers.ActivityContext android.content.Context is injected at
+          [App_HiltComponents.SingletonC] com.example.hiltnotes.experiments.IllegalSingletonHoldingActivityContext(context)
+```
+
+**Real bug prevented by each error (2 sentences):**
+Because a `@Singleton` lives for the entire application process while an `Activity` is destroyed and recreated on every rotation or back navigation, holding either an `@ActivityScoped` object or an `@ActivityContext` inside a `@Singleton` would permanently pin the destroyed `Activity` and its entire view hierarchy in memory (a severe memory leak) and cause crashes when using a stale window token. Dagger's compile-time rejection guarantees that shorter-lived Activity-bound objects can never escape upward into longer-lived components.
