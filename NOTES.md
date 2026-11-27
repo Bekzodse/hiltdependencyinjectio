@@ -614,3 +614,36 @@ At **compile time**, Hilt's test annotation processor excludes `NetworkModule` f
 - **`RoomNoteRepository` & `DefaultGitHubRepository`:** Both depend exclusively on interfaces (`NoteDao`, `GitHubService`, `GitHubUserDao`) and an injected `CoroutineDispatcher` — zero `Context`, zero Room builder, zero Retrofit builder.
 - **`NotesViewModel`, `NoteDetailViewModel`, `GitHubUsersViewModel`, `DraftViewModel`:** Every ViewModel receives interfaces (`NoteRepository`, `GitHubRepository`, `Logger`) and JVM-safe `SavedStateHandle` via constructor injection, so instantiating them with hand-made fakes and `StandardTestDispatcher` tests all business logic, error handling, and `StateFlow` emissions in milliseconds.
 - **Not tested on plain JVM (needs instrumented tests in Q28–Q30):** `MainActivity` Compose UI wiring, real SQLite Room queries (`AppDatabase`), Hilt module wiring (`@TestInstallIn`), and `ConnectivityReceiver`.
+
+---
+
+### Question 28 — Instrumented Hilt Test Setup & Three Failure Modes (Hands-on)
+
+**Implementation:**
+- [`app/build.gradle.kts`](app/build.gradle.kts) (`hilt-android-testing`, `kspAndroidTest(libs.hilt.compiler)`, `testInstrumentationRunner = "com.example.hiltnotes.HiltTestRunner"`)
+- [`app/src/androidTest/java/com/example/hiltnotes/HiltTestRunner.kt`](app/src/androidTest/java/com/example/hiltnotes/HiltTestRunner.kt)
+- [`app/src/androidTest/java/com/example/hiltnotes/HiltInjectionSmokeTest.kt`](app/src/androidTest/java/com/example/hiltnotes/HiltInjectionSmokeTest.kt)
+
+**Failure 1 — Removing custom `HiltTestRunner` (reverting to `AndroidJUnitRunner`):**
+```text
+java.lang.IllegalStateException: Hilt test, com.example.hiltnotes.HiltInjectionSmokeTest,
+cannot use a @HiltAndroidApp application but found com.example.hiltnotes.App.
+To fix, configure the test to use HiltTestApplication or a custom Hilt test application
+generated with @CustomTestApplication.
+    at dagger.hilt.android.internal.testing.TestApplicationComponentManagerHolder.checkState(...)
+```
+
+**Failure 2 — Removing `@get:Rule val hiltRule = HiltAndroidRule(this)`:**
+```text
+java.lang.IllegalStateException: The component was not created.
+Check that you have added the HiltAndroidRule.
+```
+*(Or if `hiltRule.inject()` is also absent, `kotlin.UninitializedPropertyAccessException: lateinit property repository has not been initialized`.)*
+
+**Failure 3 — Keeping `HiltTestRunner` and `HiltAndroidRule`, but removing `hiltRule.inject()`:**
+```text
+kotlin.UninitializedPropertyAccessException: lateinit property repository has not been initialized
+    at com.example.hiltnotes.HiltInjectionSmokeTest.getRepository(HiltInjectionSmokeTest.kt:23)
+    at com.example.hiltnotes.HiltInjectionSmokeTest.repositoryIsInjectedAndPersistsNote(HiltInjectionSmokeTest.kt:32)
+```
+*(Because `HiltAndroidRule` prepares the test component, but field injection on the test class itself does not occur until you explicitly invoke `hiltRule.inject()` — allowing `@BindValue` fields to be initialized first.)*
