@@ -571,3 +571,28 @@ Unlike `Activity` (which has `onCreate`) or `Service` (which has `onCreate`), a 
    [Logcat][DraftViewModel] onCleared() called for instance=...
    ```
    Re-entering the wizard later starts with a fresh, empty `DraftViewModel` — no stale draft state leaks across sessions.
+
+---
+
+## Section 6 — Testing, Replacing Modules & Capstone (Slides 32–34)
+
+### Question 26 — How Hilt Testing Works & Why Unit Tests Don't Need It (Theoretical, Slide 32)
+
+#### 1. How `@TestInstallIn` Replaces a Production Module
+```kotlin
+@Module
+@TestInstallIn(
+    components = [SingletonComponent::class],
+    replaces = [NetworkModule::class]
+)
+object TestNetworkModule { ... }
+```
+At **compile time**, Hilt's test annotation processor excludes `NetworkModule` from the generated test `SingletonComponent` across all `@HiltAndroidTest` classes in that test source set and installs `TestNetworkModule` in its place. Every production class (`DefaultGitHubRepository`, `GitHubUsersViewModel`, `MainActivity`) stays 100% unchanged while receiving the fake/test bindings (e.g., `MockWebServer` URL or in-memory Room DB).
+
+#### 2. Role of Each Instrumented-Test Piece
+- **`@HiltAndroidTest`:** Tells `hilt-compiler` to generate a dedicated Dagger test component and `MembersInjector` for this test class so `@Inject` fields on the test class can be populated and `@UninstallModules` / `@BindValue` overrides work.
+- **`HiltAndroidRule(this)`:** A JUnit `TestRule` that manages the lifecycle of Hilt's test component for each test method (initializing/resetting the `SingletonComponent` between tests so state does not leak across test cases) and exposes `hiltRule.inject()` to populate `@Inject lateinit var` fields on the test class.
+- **Custom `AndroidJUnitRunner` returning `HiltTestApplication`:** Production `App` (`@HiltAndroidApp`) compiles its production Dagger component directly into `Hilt_App`. Instrumented tests need a special `Application` (`HiltTestApplication`) that delegates component creation to per-test generated components created by `HiltAndroidRule`. Overriding `newApplication(...)` in `HiltTestRunner` swaps `App` for `HiltTestApplication` before any test runs.
+
+#### 3. Why a JVM Unit Test of an `@Inject constructor` Class Needs None of Them
+`@Inject` is just metadata on a completely normal Kotlin constructor. In a JVM unit test (`./gradlew test`), you simply call the constructor directly — `NotesViewModel(FakeNoteRepository())` or `RoomNoteRepository(FakeNoteDao(), testDispatcher)` — passing hand-made fakes without reflection, Android framework classes, `HiltTestApplication`, or an emulator. The tests execute in milliseconds instead of minutes.
