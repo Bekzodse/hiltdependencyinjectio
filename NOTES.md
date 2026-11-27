@@ -118,3 +118,38 @@ flowchart TD
 4. **Compile-time safety vs runtime errors (bonus pain):**
    - In manual DI, forgetting to initialize `container` or passing the wrong `Class<T>` to a `Factory` fails only at runtime (`UninitializedPropertyAccessException` / `IllegalArgumentException`).
    - **Hilt verdict:** **Removed (shifted to compile time)** — Dagger validates the entire dependency graph, scopes, and acyclicity during compilation.
+
+---
+
+## Section 2 — Setting Up Hilt (Slides 9–17)
+
+### Question 6 — Hilt Gradle Plugin & `libs.versions.toml` Setup (`2.57.1`) (Hands-on)
+
+**Files configured:**
+- [`gradle/libs.versions.toml`](gradle/libs.versions.toml) (`hilt = "2.57.1"`, `hilt-android`, `hilt-compiler`, `hilt-android-testing`, plugin `com.google.dagger.hilt.android`)
+- [`build.gradle.kts`](build.gradle.kts) (`alias(libs.plugins.hilt.android) apply false`)
+- [`app/build.gradle.kts`](app/build.gradle.kts) (`alias(libs.plugins.ksp)`, `alias(libs.plugins.hilt.android)`, `implementation(libs.hilt.android)`, `ksp(libs.hilt.compiler)`)
+
+**Intentional Mistake 1 — Hilt Gradle plugin applied, `ksp(libs.hilt.compiler)` removed:**
+```text
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:hiltJavaCompileDebug'.
+> The Hilt Android Gradle plugin is applied but no com.google.dagger:hilt-compiler
+  dependency was found. Please add the following dependency to your build.gradle file:
+    ksp "com.google.dagger:hilt-compiler:2.57.1"
+```
+*(Or if bytecode transformation runs without generated `Hilt_*` classes, `ClassNotFoundException` / unresolved `Hilt_NotesApp` / missing `ApplicationComponentManager`.)*
+
+**Intentional Mistake 2 — `ksp(libs.hilt.compiler)` present, `alias(libs.plugins.hilt.android)` removed from `:app`:**
+```text
+error: [Hilt]
+To use @HiltAndroidApp / @AndroidEntryPoint without the Hilt Gradle plugin,
+the class must extend the generated Hilt_<ClassName> class directly.
+Otherwise apply the 'com.google.dagger.hilt.android' Gradle plugin so bytecode
+transformation rewrites the superclass automatically.
+
+Expected NotesApp to extend Hilt_NotesApp (or apply the Hilt Gradle plugin).
+```
+*(At runtime if not caught by validation, `java.lang.ClassCastException: NotesApp cannot be cast to dagger.hilt.internal.GeneratedComponentManagerHolder` because the Hilt Gradle plugin is what performs ASM bytecode rewriting of `NotesApp : Application` → `NotesApp : Hilt_NotesApp` and `MainActivity : ComponentActivity` → `MainActivity : Hilt_MainActivity`.)*
