@@ -14,6 +14,20 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    buildFeatures {
+        buildConfig = true
+    }
+
+    buildTypes {
+        debug {
+            val useFake = project.findProperty("useFakeRepo")?.toString() ?: "false"
+            buildConfigField("boolean", "USE_FAKE_REPO", useFake)
+        }
+        release {
+            buildConfigField("boolean", "USE_FAKE_REPO", "false")
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

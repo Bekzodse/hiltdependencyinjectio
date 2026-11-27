@@ -512,3 +512,18 @@ Scoping is an architectural contract about **object lifetime, shared identity, m
 - `NavBackStackEntry` automatically populates its `SavedStateHandle` with the typed `navArgument("noteId") { type = NavType.LongType }` from route `note/{noteId}`, and Hilt's `ViewModelComponent` provides that `SavedStateHandle` directly into `@HiltViewModel`'s constructor.
 - Because the navigation back-stack entry's `Bundle` is saved and restored by Android's `SavedStateRegistry`, backgrounding the app with **Developer Options → Don't keep activities** enabled (or killing the process via `adb shell am kill com.example.hiltnotes`) recreates `NoteDetailViewModel` with `savedStateHandle["noteId"]` intact and reloads the exact same note from Room.
 - In JVM unit tests (`NoteDetailViewModelTest`), `SavedStateHandle(mapOf("noteId" to 7L))` is a plain JVM class (no Android framework needed), allowing direct constructor testing.
+
+---
+
+### Question 23 — `NoteRepository` Real vs Fake Debug Switch (Hands-on)
+
+**Implementation:**
+- [`data/src/main/java/com/example/hiltnotes/data/NoteRepository.kt`](data/src/main/java/com/example/hiltnotes/data/NoteRepository.kt) (`interface NoteRepository`, `RoomNoteRepository`)
+- [`data/src/main/java/com/example/hiltnotes/data/FakeNoteRepository.kt`](data/src/main/java/com/example/hiltnotes/data/FakeNoteRepository.kt) (in-memory sample data)
+- [`data/build.gradle.kts`](data/build.gradle.kts) (`BuildConfig.USE_FAKE_REPO` controlled by `-PuseFakeRepo=true` in `debug`, always `false` in `release`)
+- [`data/src/main/java/com/example/hiltnotes/di/RepositoryModule.kt`](data/src/main/java/com/example/hiltnotes/di/RepositoryModule.kt) (uses `Provider<RoomNoteRepository>` / `Provider<FakeNoteRepository>` so the inactive implementation is never even instantiated)
+
+**Running Both Modes in Android Studio / CLI:**
+- **Real Room mode (default):** `./gradlew :app:installDebug` — starts with persisted SQLite Room database (`hilt_notes.db`).
+- **Fake sample-data mode:** `./gradlew :app:installDebug -PuseFakeRepo=true` — immediately displays the 3 pre-seeded sample notes from `FakeNoteRepository` without touching Room.
+*(Capture screenshots of both launches in Android Studio Device Explorer / Logcat panel when running on an emulator.)*
