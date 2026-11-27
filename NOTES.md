@@ -355,3 +355,26 @@ Once every `OkHttpClient` provider carries a qualifier, an unqualified `OkHttpCl
 
 **Observation:**
 Injecting `@IoDispatcher` instead of hard-coding `Dispatchers.IO` lets `NoteRepositoryDispatcherTest` pass `StandardTestDispatcher(testScheduler)` directly to `RoomNoteRepository(dao, testDispatcher)`. The test runs deterministically on the JVM with zero Android classes, zero Robolectric, and zero Hilt overhead — and injecting `@BaseUrl` allows instrumented tests (Q30) to redirect Retrofit to `MockWebServer` without modifying `NetworkModule`'s `OkHttpClient` or `Retrofit` builder.
+
+---
+
+## Section 4 — Components & Scopes (Slides 27–29)
+
+### Question 16 — Scope Lifetime Experiment (4×4 Prediction vs. Result Table) (Hands-on)
+
+**Implementation:**
+- [`app/src/main/java/com/example/hiltnotes/experiments/ScopeExperiment.kt`](app/src/main/java/com/example/hiltnotes/experiments/ScopeExperiment.kt)
+- [`app/src/main/java/com/example/hiltnotes/MainActivity.kt`](app/src/main/java/com/example/hiltnotes/MainActivity.kt)
+
+**4×4 Table — Predicted vs. Observed Instance IDs (`Activity 1 = MainActivity`, `Activity 2 = ScopeExperimentActivity`, `ViewModel = ScopeExperimentViewModel` inside Activity 2, `After Rotation` of Activity 2):**
+
+| Counter Class (Scope) | Activity 1 (`MainActivity`) | Activity 2 (`ScopeExperimentActivity`) | `ScopeExperimentViewModel` (in Act 2) | After Rotating Activity 2 |
+|---|---|---|---|---|
+| **Unscoped** (`UnscopedCounter`) | Pred: `#1`<br>Obs: **`#1`** ✅ | Pred: `#2`<br>Obs: **`#2`** ✅ | Pred: `#3`<br>Obs: **`#3`** ✅ | Pred: Act `#4`, VM stays `#3`<br>Obs: **Act `#4`, VM stays `#3`** ✅ |
+| **`@Singleton`** (`SingletonCounter`) | Pred: `#1`<br>Obs: **`#1`** ✅ | Pred: `#1`<br>Obs: **`#1`** ✅ | Pred: `#1`<br>Obs: **`#1`** ✅ | Pred: `#1` (both Act & VM)<br>Obs: **`#1` (both Act & VM)** ✅ |
+| **`@ActivityRetainedScoped`** (`ActivityRetainedCounter`) | Pred: `#1`<br>Obs: **`#1`** ✅ | Pred: `#1` ❌ *(wrong!)*<br>Obs: **`#2`** (new activity = new retained component!) | Pred: `#2` (shared with Act 2)<br>Obs: **`#2`** (same as Act 2!) ✅ | Pred: `#2` (survives rotation!)<br>Obs: **`#2`** (Act 2 & VM keep `#2`) ✅ |
+| **`@ViewModelScoped`** (`ViewModelScopedCounter`) | Pred: `#1` ❌ *(wrong!)*<br>Obs: **COMPILE ERROR** (`ActivityComponent` cannot inject `@ViewModelScoped`) | Pred: `#2` ❌ *(wrong!)*<br>Obs: **COMPILE ERROR** (only injectable inside `ViewModelComponent`) | Pred: `#1`<br>Obs: **`#1`** ✅ | Pred: `#1` (VM survives rotation)<br>Obs: **`#1`** (recreated only when VM `onCleared()` runs) ✅ |
+
+**Key surprises (cells marked ❌ above):**
+1. `@ViewModelScoped` **cannot** be injected into an `Activity` at all — `ViewModelComponent` and `ActivityComponent` are sibling children of `ActivityRetainedComponent`. Attempting to inject `@ViewModelScoped` in an Activity causes `[Dagger/IncompatiblyScopedBindings]` at compile time.
+2. `@ActivityRetainedScoped` is shared between an `Activity` and its `ViewModel`s **and survives configuration changes (rotation)**, but launching a *different* Activity (`Activity 2`) creates a **new** `ActivityRetainedComponent` (`#2`), unlike `@Singleton` which stays `#1` across the entire process.

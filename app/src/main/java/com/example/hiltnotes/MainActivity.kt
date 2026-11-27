@@ -18,6 +18,9 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.hiltnotes.di.AppContainer
 import com.example.hiltnotes.experiments.A
+import com.example.hiltnotes.experiments.ActivityRetainedCounter
+import com.example.hiltnotes.experiments.SingletonCounter
+import com.example.hiltnotes.experiments.UnscopedCounter
 import com.example.hiltnotes.logging.Logger
 import com.example.hiltnotes.ui.GitHubUsersScreen
 import com.example.hiltnotes.ui.GitHubUsersViewModel
@@ -40,11 +43,20 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var secondA: A
 
+    @Inject
+    lateinit var unscopedCounter: UnscopedCounter
+
+    @Inject
+    lateinit var singletonCounter: SingletonCounter
+
+    @Inject
+    lateinit var activityRetainedCounter: ActivityRetainedCounter
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         logger.log(
             "MainActivity",
-            "Q9 same A instance? ${firstA === secondA} (firstA=${System.identityHashCode(firstA)}, secondA=${System.identityHashCode(secondA)})"
+            "Q9 same A instance? ${firstA === secondA} | Q16 counters: unscoped=#${unscopedCounter.instanceId}, singleton=#${singletonCounter.instanceId}, retained=#${activityRetainedCounter.instanceId}"
         )
         val container = (application as App).container
         setContent {
