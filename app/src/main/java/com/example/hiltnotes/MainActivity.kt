@@ -3,25 +3,26 @@ package com.example.hiltnotes
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.example.hiltnotes.di.AppContainer
+import com.example.hiltnotes.ui.GitHubUsersScreen
+import com.example.hiltnotes.ui.GitHubUsersViewModel
+import com.example.hiltnotes.ui.NoteDetailScreen
+import com.example.hiltnotes.ui.NoteDetailViewModel
+import com.example.hiltnotes.ui.NotesListScreen
+import com.example.hiltnotes.ui.NotesViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -30,7 +31,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    ManualNavApp(container)
+                    ManualNotesNavHost(container)
                 }
             }
         }
@@ -38,35 +39,44 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun ManualNavApp(container: AppContainer) {
+private fun ManualNotesNavHost(container: AppContainer) {
     val navController = rememberNavController()
     NavHost(navController = navController, startDestination = "notes") {
         composable("notes") {
-            val notes by container.noteRepository.observeNotes().collectAsState(initial = emptyList())
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Notes (${notes.size})", style = MaterialTheme.typography.headlineSmall)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { navController.navigate("detail/1") }) { Text("Detail") }
-                    Button(onClick = { navController.navigate("github") }) { Text("GitHub Users") }
-                }
-            }
+            val vm: NotesViewModel = viewModel(factory = container.notesViewModelFactory())
+            val notes by vm.notes.collectAsState()
+            NotesListScreen(
+                notes = notes,
+                onAddNote = vm::addNote,
+                onDeleteNote = vm::deleteNote,
+                onNoteClick = { id -> navController.navigate("note/$id") },
+                onOpenGitHub = { navController.navigate("github") }
+            )
         }
-        composable("detail/{noteId}") { backStackEntry ->
-            val noteId = backStackEntry.arguments?.getString("noteId")?.toLongOrNull() ?: -1L
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Note Detail #$noteId", style = MaterialTheme.typography.headlineSmall)
-                Button(onClick = { navController.popBackStack() }) { Text("Back") }
-            }
+        composable(
+            route = "note/{noteId}",
+            arguments = listOf(navArgument("noteId") { type = NavType.LongType })
+        ) { entry ->
+            val noteId = entry.arguments?.getLong("noteId") ?: -1L
+            val vm: NoteDetailViewModel = viewModel(
+                factory = container.noteDetailViewModelFactory(noteId)
+            )
+            val note by vm.note.collectAsState()
+            NoteDetailScreen(
+                note = note,
+                onBack = { navController.popBackStack() }
+            )
         }
         composable("github") {
-            val users by container.gitHubRepository.observeCachedUsers().collectAsState(initial = emptyList())
-            LaunchedEffect(Unit) {
-                runCatching { container.gitHubRepository.refreshUsers() }
-            }
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("GitHub Users (${users.size})", style = MaterialTheme.typography.headlineSmall)
-                Button(onClick = { navController.popBackStack() }) { Text("Back") }
-            }
+            val vm: GitHubUsersViewModel = viewModel(factory = container.gitHubUsersViewModelFactory())
+            val users by vm.users.collectAsState()
+            val error by vm.error.collectAsState()
+            GitHubUsersScreen(
+                users = users,
+                error = error,
+                onRefresh = vm::refresh,
+                onBack = { navController.popBackStack() }
+            )
         }
     }
 }

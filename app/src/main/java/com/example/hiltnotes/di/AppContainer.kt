@@ -10,6 +10,9 @@ import com.example.hiltnotes.data.GitHubUserDao
 import com.example.hiltnotes.data.NoteDao
 import com.example.hiltnotes.data.NoteRepository
 import com.example.hiltnotes.data.RoomNoteRepository
+import com.example.hiltnotes.ui.GitHubUsersViewModelFactory
+import com.example.hiltnotes.ui.NoteDetailViewModelFactory
+import com.example.hiltnotes.ui.NotesViewModelFactory
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -69,6 +72,15 @@ class AppContainer(appContext: Context) {
     val gitHubRepository: GitHubRepository by lazy {
         DefaultGitHubRepository(gitHubService, gitHubUserDao)
     }
+
+    fun notesViewModelFactory(): NotesViewModelFactory =
+        NotesViewModelFactory(noteRepository)
+
+    fun noteDetailViewModelFactory(noteId: Long): NoteDetailViewModelFactory =
+        NoteDetailViewModelFactory(noteId, noteRepository)
+
+    fun gitHubUsersViewModelFactory(): GitHubUsersViewModelFactory =
+        GitHubUsersViewModelFactory(gitHubRepository)
 
     companion object {
         val okHttpCount = AtomicInteger(0)

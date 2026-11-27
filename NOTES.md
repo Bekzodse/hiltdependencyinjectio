@@ -58,3 +58,18 @@ Slide 4 identifies three ways a class can obtain an object it needs:
 
 **Observation:**
 Putting `AppContainer` on `NotesApp : Application` with `by lazy` ensures `created OkHttpClient (#1)`, `created Retrofit (#1)`, `created AppDatabase (#1)`, `created NoteDao (#1)`, and `created RoomNoteRepository (#1)` each print **once** for the entire app process lifetime, regardless of navigating between all three screens or rotating the device. Notice that `OkHttpClient`, `Retrofit`, and `GitHubService` are not even created until the user navigates to the `github` screen (lazy initialization).
+
+---
+
+### Question 4 — Rewiring the Notes App Manually on Branch `manual-di` (Hands-on)
+
+**Branch:** `manual-di` (zero `ApiInstance.service` or `DatabaseProvider.get(context)` calls remain anywhere in the codebase; every dependency arrives via constructor parameters or `AppContainer`).
+
+**Files Touched & Lines Added (excluding `NOTES.md`):**
+- **Files touched:** **6** (`NotesViewModel.kt`, `NoteDetailViewModel.kt`, `GitHubUsersViewModel.kt`, `NotesScreens.kt`, `AppContainer.kt`, `MainActivity.kt`)
+- **Lines added:** **350** lines added (32 lines replaced in `MainActivity.kt`)
+- **Pure manual-DI boilerplate breakdown:**
+  - `AppContainer.kt`: **92 lines**
+  - Manual `ViewModelProvider.Factory` classes (3 factories × ~11 lines): **33 lines**
+  - `NotesApp.kt` container bootstrap: **13 lines**
+  - Total manual DI wiring overhead: **138 lines** (to be compared directly with the `hilt` branch in Question 21).
