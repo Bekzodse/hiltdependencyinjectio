@@ -7,9 +7,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
@@ -17,11 +17,15 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.navigation.navigation
 import com.example.hiltnotes.experiments.A
 import com.example.hiltnotes.experiments.ActivityRetainedCounter
 import com.example.hiltnotes.experiments.SingletonCounter
 import com.example.hiltnotes.experiments.UnscopedCounter
 import com.example.hiltnotes.logging.Logger
+import com.example.hiltnotes.ui.DraftViewModel
+import com.example.hiltnotes.ui.EditBodyScreen
+import com.example.hiltnotes.ui.EditTitleScreen
 import com.example.hiltnotes.ui.GitHubUsersScreen
 import com.example.hiltnotes.ui.GitHubUsersViewModel
 import com.example.hiltnotes.ui.NoteDetailScreen
@@ -69,7 +73,8 @@ fun HiltNotesNavHost() {
                 onAddNote = vm::addNote,
                 onDeleteNote = vm::deleteNote,
                 onNoteClick = { id -> navController.navigate("note/$id") },
-                onOpenGitHub = { navController.navigate("github") }
+                onOpenGitHub = { navController.navigate("github") },
+                onOpenDraftWizard = { navController.navigate("edit") }
             )
         }
         composable(
@@ -93,6 +98,41 @@ fun HiltNotesNavHost() {
                 onRefresh = vm::refresh,
                 onBack = { navController.popBackStack() }
             )
+        }
+        // Question 25: Nested "edit" graph scoping DraftViewModel across EditTitle & EditBody
+        navigation(startDestination = "EditTitle", route = "edit") {
+            composable("EditTitle") { backStackEntry ->
+                val parentEntry = remember(backStackEntry) {
+                    navController.getBackStackEntry("edit")
+                }
+                val draftVm: DraftViewModel = hiltViewModel(parentEntry)
+                val title by draftVm.title.collectAsState()
+                EditTitleScreen(
+                    title = title,
+                    onTitleChange = draftVm::updateTitle,
+                    onNext = { navController.navigate("EditBody") },
+                    onCancel = { navController.popBackStack("edit", inclusive = true) }
+                )
+            }
+            composable("EditBody") { backStackEntry ->
+                val parentEntry = remember(backStackEntry) {
+                    navController.getBackStackEntry("edit")
+                }
+                val draftVm: DraftViewModel = hiltViewModel(parentEntry)
+                val title by draftVm.title.collectAsState()
+                val body by draftVm.body.collectAsState()
+                EditBodyScreen(
+                    title = title,
+                    body = body,
+                    onBodyChange = draftVm::updateBody,
+                    onSave = {
+                        draftVm.saveDraft {
+                            navController.popBackStack("edit", inclusive = true)
+                        }
+                    },
+                    onBack = { navController.popBackStack() }
+                )
+            }
         }
     }
 }

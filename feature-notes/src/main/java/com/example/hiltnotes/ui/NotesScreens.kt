@@ -32,7 +32,8 @@ fun NotesListScreen(
     onAddNote: (String, String) -> Unit,
     onDeleteNote: (NoteEntity) -> Unit,
     onNoteClick: (Long) -> Unit,
-    onOpenGitHub: () -> Unit
+    onOpenGitHub: () -> Unit,
+    onOpenDraftWizard: () -> Unit = {}
 ) {
     var title by remember { mutableStateOf("") }
     var body by remember { mutableStateOf("") }
@@ -48,7 +49,10 @@ fun NotesListScreen(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text("Notes", style = MaterialTheme.typography.headlineMedium)
-            Button(onClick = onOpenGitHub) { Text("GitHub Users") }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onOpenDraftWizard) { Text("Draft") }
+                Button(onClick = onOpenGitHub) { Text("GitHub") }
+            }
         }
 
         OutlinedTextField(

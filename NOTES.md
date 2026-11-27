@@ -553,3 +553,21 @@ Scoping is an architectural contract about **object lifetime, shared identity, m
 
 **Why injection happens in `onReceive(context, intent)`:**
 Unlike `Activity` (which has `onCreate`) or `Service` (which has `onCreate`), a `BroadcastReceiver` has **no `onCreate()` lifecycle callback** and does not hold a `Context` in its constructor. The **first** time a `BroadcastReceiver` ever receives a `Context` (needed to reach `context.applicationContext` → `SingletonComponent`) is when Android invokes `onReceive(context, intent)`.
+
+---
+
+### Question 25 — Nested Navigation Graph Scoping (`DraftViewModel`) (Hands-on)
+
+**Implementation:**
+- [`feature-notes/src/main/java/com/example/hiltnotes/ui/DraftViewModel.kt`](feature-notes/src/main/java/com/example/hiltnotes/ui/DraftViewModel.kt)
+- [`feature-notes/src/main/java/com/example/hiltnotes/ui/DraftEditScreens.kt`](feature-notes/src/main/java/com/example/hiltnotes/ui/DraftEditScreens.kt)
+- Nested `navigation(startDestination = "EditTitle", route = "edit")` in [`app/src/main/java/com/example/hiltnotes/MainActivity.kt`](app/src/main/java/com/example/hiltnotes/MainActivity.kt)
+
+**Observed Lifecycle:**
+1. Navigating to `"edit"` enters `EditTitle` and calls `hiltViewModel(navController.getBackStackEntry("edit"))` → logs `DraftViewModel: Created instance=...`.
+2. Typing `"Weekly Sync"` in `EditTitle` and tapping **Next: Body** enters `EditBody`, which requests `hiltViewModel(parentEntry)` for the same `"edit"` back-stack entry → **same `DraftViewModel` instance**, so `"Title from step 1: Weekly Sync"` is immediately visible.
+3. Saving or cancelling pops the entire `"edit"` graph (`navController.popBackStack("edit", inclusive = true)`) → the `"edit"` `NavBackStackEntry`'s `ViewModelStore` clears immediately and logs:
+   ```text
+   [Logcat][DraftViewModel] onCleared() called for instance=...
+   ```
+   Re-entering the wizard later starts with a fresh, empty `DraftViewModel` — no stale draft state leaks across sessions.
