@@ -451,3 +451,24 @@ Because a `@Singleton` lives for the entire application process while an `Activi
    error: [Dagger/MissingBinding] com.example.hiltnotes.data.NoteDao cannot be provided without an @Provides-annotated method.
    ```
    **Why:** Hilt builds the single complete Dagger component tree inside the `@HiltAndroidApp` module (`:app`), so every Gradle module containing `@Module @InstallIn(...)` bindings must be reachable on `:app`'s dependency graph.
+
+---
+
+### Question 20 — Scope Selection Code Review (Theoretical)
+
+| Class | Recommended Scope | Justification (Cost, Lifetime, Thread-Safety) |
+|---|---|---|
+| **`UserSession`** *(one per app launch)* | **`@Singleton`** (or a custom `@UserScoped` component if logout must tear down an entire user-scoped graph) | Needs a single source of truth across all screens for the app launch lifetime. Must be designed thread-safe (e.g., `StateFlow` / atomic state / synchronized mutations) because multiple coroutines & threads observe it concurrently. |
+| **`NoteListState`** *(one per screen visit)* | **`@ViewModelScoped`** (or **Unscoped** owned directly inside `NotesViewModel`) | Must survive configuration changes (rotation) during one screen visit, then be garbage-collected when the user leaves the screen (`onCleared()`). Making it `@Singleton` would leak stale UI/scroll/filter state across visits and never release memory. |
+| **`HttpClient`** *(expensive to build)* | **`@Singleton`** | High construction cost; owns connection pools, thread pools, and HTTP caches that **must** be shared across all requests to reuse TLS sockets and avoid thread/file-descriptor exhaustion. `OkHttpClient` is explicitly thread-safe. |
+| **`DateFormatter`** *(stateless, cheap)* | **Unscoped (no scope annotation)** — or `@Singleton` *only* if strictly immutable/thread-safe (`java.time.format.DateTimeFormatter`) | Cheap to allocate, zero need to retain in memory forever or pay `DoubleCheck` synchronization overhead. **Critical trap:** `java.text.SimpleDateFormat` is **NOT thread-safe** — putting `@Singleton` on `SimpleDateFormat` causes silent data corruption and `NumberFormatException` under concurrent requests! |
+| **`AuthToken`** *(changes at login/logout)* | **Unscoped** (or better: inject a `@Singleton AuthTokenProvider` / `StateFlow<AuthToken?>`, or provide `Provider<AuthToken>`) | A raw `AuthToken` value changes dynamically at login/refresh/logout. Scoping the token string/object itself to `@Singleton` freezes the initial (possibly `null` or expired) token for the rest of the process lifetime! |
+
+#### When Adding `@Singleton` Is Wrong — Why "Just Make It a Singleton" Is Not a Design Decision
+Adding `@Singleton` is wrong whenever an object:
+1. **Holds short-lived or screen-specific state** (`NoteListState`, `Activity` references, form drafts) — causes memory leaks and stale UI state.
+2. **Changes over time** (`AuthToken`, current locale/user config) — freezing a snapshot in `SingletonComponent` causes subtle auth/stale-data bugs.
+3. **Is mutable and not thread-safe** (`SimpleDateFormat`, mutable builders) — sharing one instance across threads causes race conditions.
+4. **Is cheap and stateless** — scoping adds `DoubleCheck` locking overhead and keeps objects alive in memory for the entire app process for zero benefit.
+
+Scoping is an architectural contract about **object lifetime, shared identity, memory footprint, and concurrency** — default to **unscoped** and add a scope only when you explicitly need shared state or amortized construction cost over that exact component lifetime.
