@@ -13,7 +13,8 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
 /**
- * Question 12: @Provides @Singleton bindings for third-party networking classes.
+ * Questions 12 & 14: Provides two qualified OkHttpClients (@ApiClient 10s, @DownloadClient 60s),
+ * Retrofit, and GitHubService.
  */
 @Module
 @InstallIn(SingletonComponent::class)
@@ -21,8 +22,9 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideOkHttpClient(): OkHttpClient {
-        println("NetworkModule: creating OkHttpClient")
+    @ApiClient
+    fun provideApiOkHttpClient(): OkHttpClient {
+        println("NetworkModule: creating @ApiClient OkHttpClient (10s timeout)")
         val logging = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BASIC
         }
@@ -35,7 +37,19 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit {
+    @DownloadClient
+    fun provideDownloadOkHttpClient(): OkHttpClient {
+        println("NetworkModule: creating @DownloadClient OkHttpClient (60s timeout)")
+        return OkHttpClient.Builder()
+            .connectTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
+            .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideRetrofit(@ApiClient okHttpClient: OkHttpClient): Retrofit {
         println("NetworkModule: creating Retrofit")
         return Retrofit.Builder()
             .baseUrl("https://api.github.com/")

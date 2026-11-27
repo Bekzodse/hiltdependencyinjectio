@@ -319,3 +319,25 @@ error: [Dagger/MissingBinding] android.content.Context cannot be provided withou
 
 **Why a plain `Context` parameter is ambiguous:**
 In Android, `Context` can refer to either the process-wide **Application `Context`** (`@ApplicationContext`) or a short-lived UI-bound **Activity `Context`** (`@ActivityContext`, which carries a theme/window and leaks the Activity if held beyond `onDestroy()`). Hilt deliberately refuses to provide an unqualified `Context` so developers must explicitly declare which lifetime they need — preventing accidental Activity memory leaks inside `@Singleton` objects like Room databases.
+
+---
+
+### Question 14 — `@Named` vs Custom `@Qualifier` Annotations (`@ApiClient` & `@DownloadClient`) (Hands-on)
+
+**Implementation:**
+- [`app/src/main/java/com/example/hiltnotes/di/Qualifiers.kt`](app/src/main/java/com/example/hiltnotes/di/Qualifiers.kt) (`@ApiClient`, `@DownloadClient`)
+- [`app/src/main/java/com/example/hiltnotes/di/NetworkModule.kt`](app/src/main/java/com/example/hiltnotes/di/NetworkModule.kt) (10s timeout for `@ApiClient`, 60s timeout for `@DownloadClient`)
+- [`app/src/main/java/com/example/hiltnotes/data/FileDownloader.kt`](app/src/main/java/com/example/hiltnotes/data/FileDownloader.kt) (injects `@DownloadClient OkHttpClient`, while `provideRetrofit` injects `@ApiClient OkHttpClient`)
+
+**Error when dropping the qualifier on one injection site (`fun provideRetrofit(okHttpClient: OkHttpClient)`):**
+```text
+error: [Dagger/MissingBinding] okhttp3.OkHttpClient cannot be provided without an @Inject constructor or an @Provides-annotated method.
+      okhttp3.OkHttpClient is requested at
+          [App_HiltComponents.SingletonC] com.example.hiltnotes.di.NetworkModule.provideRetrofit(okHttpClient)
+```
+*(Or if both providers lacked qualifiers: `[Dagger/DuplicateBindings] okhttp3.OkHttpClient is bound multiple times`.)*
+Once every `OkHttpClient` provider carries a qualifier, an unqualified `OkHttpClient` is a **different Dagger key**, so Dagger reports `MissingBinding` for unqualified `OkHttpClient`.
+
+**Two reasons custom `@Qualifier` annotations beat `@Named("...")` strings:**
+1. **Compile-time typo safety:** A typo like `@Named("downlaod")` silently compiles as a wrong string key until Dagger fails with a confusing missing-binding error (or worse, matches an unintended string), whereas `@DownloadClient` is checked by the Kotlin compiler with IDE autocomplete and safe refactoring (`Rename`).
+2. **Namespace & discoverability:** Custom annotations are typed symbols with KDoc, Find Usages, and package scoping — eliminating accidental string collisions across modules and teams.
