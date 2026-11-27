@@ -243,3 +243,31 @@ ChainExperiment: created A (1480010240)
 ```
 1. **Creation order:** Always bottom-up from the leaf dependency to the root: **`C, B, A`** (because `A(b)` cannot be constructed until `B(c)` exists, which cannot be constructed until `C()` exists).
 2. **Are `firstA` and `secondA` the same object?** **No (`firstA === secondA` is `false`).** Because none of `A`, `B`, or `C` carry a scope annotation (like `@Singleton` or `@ActivityScoped`), Dagger generates `new A(new B(new C()))` fresh for **every** injection site — creating two distinct `A`s, two `B`s, and two `C`s.
+
+---
+
+### Question 10 — Reading Dagger Compile-Time Errors: Missing Bindings & Cycles (Theoretical, Slide 19)
+
+#### How to Read a Dagger / Hilt Error Wall of Text
+A Dagger error has a structured, bottom-up anatomy:
+
+```text
+error: [Dagger/MissingBinding] com.example.NoteRepository cannot be provided without an @Provides-annotated method.
+      com.example.NoteRepository is injected at
+          [App_HiltComponents.ViewModelC] com.example.NotesViewModel(repository)
+      com.example.NotesViewModel is injected at
+          [App_HiltComponents.ViewModelC] com.example.NotesViewModel_HiltModules.BindsModule.binds(vm)
+      @dagger.hilt.android.internal.lifecycle.HiltViewModelMap java.util.Map<...> is requested at
+          [App_HiltComponents.ViewModelC] dagger.hilt.android.internal.lifecycle.HiltViewModelFactory.ViewModelFactoriesEntryPoint.getHiltViewModelMap()
+```
+
+1. **Where the missing type is named:** On the **very first line** right after `[Dagger/MissingBinding]` (or `[Dagger/DependencyCycle]`) — e.g., `com.example.NoteRepository` (including any `@Qualifier` if one is expected).
+2. **Where the injection request started:** At the **bottom** of the stack trace — the component entry point (`MainActivity_GeneratedInjector.injectMainActivity(...)` or `HiltViewModelFactory...`) that originally requested the root object.
+3. **How the error path shows the dependency chain:** Reading from **bottom to top** walks forward along `"needs"` (`EntryPoint -> ViewModel -> Repository -> MissingType`); reading from **top to bottom** walks backward from the broken leaf to who asked for it, with `[App_HiltComponents.<Component>]` telling you *which component* failed to resolve it.
+
+#### Two Main Classes of Compile-Time Error & Standard Fixes
+
+| Error Class | Cause | Standard Fix |
+|---|---|---|
+| **1. `[Dagger/MissingBinding]`** | An **interface / abstract class** (cannot be instantiated), a **third-party class** (`OkHttpClient`, `Retrofit`, `RoomDatabase` — cannot add `@Inject constructor`), a class missing `@Inject constructor`, a missing `@Qualifier` (e.g., `@ApplicationContext`), or a module installed in the wrong component / missing Gradle module dependency. | Add `@Inject constructor(...)` to classes you own; add a `@Binds` method in an `@Module @InstallIn(...)` abstract class for interfaces; add a `@Provides` method for third-party classes; attach the matching `@Qualifier`. |
+| **2. `[Dagger/DependencyCycle]`** | Two or more classes depend on each other directly or transitively (`A -> B -> A`), making bottom-up construction impossible. | **Best fix:** Refactor to break the cycle by extracting the shared logic/state into a third class `C` that both `A` and `B` depend on (`A -> C`, `B -> C`), or invert control with callbacks/`Flow` events. **Tactical fallback** (only when strictly needed): inject `Provider<B>` (or `Lazy<B>`) on one edge to defer instantiation until after construction. |
