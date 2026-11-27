@@ -284,3 +284,19 @@ error: [Dagger/MissingBinding] com.example.NoteRepository cannot be provided wit
 
 **Observation:**
 Every consumer (`MainActivity`, and later `ConnectivityReceiver` in Q24) injects the interface `Logger`, never a concrete class. Changing the single parameter type in `LoggingModule.bindLogger(impl: LogcatLogger)` to `bindLogger(impl: FileLogger)` transparently swaps every consumer across the entire app with **zero** other edits. `@Binds` is preferred over `@Provides` for interface bindings because Dagger generates no extra wrapper factory method.
+
+---
+
+### Question 12 — `NetworkModule` with `@Provides @Singleton` (Hands-on)
+
+**Implementation:**
+- [`app/src/main/java/com/example/hiltnotes/di/NetworkModule.kt`](app/src/main/java/com/example/hiltnotes/di/NetworkModule.kt)
+
+**Observation:**
+`OkHttpClient`, `Retrofit`, and `GitHubService` come from third-party libraries (or Retrofit's `create()` dynamic proxy), so we cannot put `@Inject constructor` on them. Declaring `@Provides @Singleton` methods in `NetworkModule` installed in `SingletonComponent` ensures that navigating across all three screens prints each provider log **exactly once**:
+```text
+NetworkModule: creating OkHttpClient
+NetworkModule: creating Retrofit
+NetworkModule: creating GitHubService
+```
+No `ApiInstance` singleton object exists anywhere in the project.
