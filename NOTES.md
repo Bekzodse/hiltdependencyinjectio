@@ -271,3 +271,16 @@ error: [Dagger/MissingBinding] com.example.NoteRepository cannot be provided wit
 |---|---|---|
 | **1. `[Dagger/MissingBinding]`** | An **interface / abstract class** (cannot be instantiated), a **third-party class** (`OkHttpClient`, `Retrofit`, `RoomDatabase` — cannot add `@Inject constructor`), a class missing `@Inject constructor`, a missing `@Qualifier` (e.g., `@ApplicationContext`), or a module installed in the wrong component / missing Gradle module dependency. | Add `@Inject constructor(...)` to classes you own; add a `@Binds` method in an `@Module @InstallIn(...)` abstract class for interfaces; add a `@Provides` method for third-party classes; attach the matching `@Qualifier`. |
 | **2. `[Dagger/DependencyCycle]`** | Two or more classes depend on each other directly or transitively (`A -> B -> A`), making bottom-up construction impossible. | **Best fix:** Refactor to break the cycle by extracting the shared logic/state into a third class `C` that both `A` and `B` depend on (`A -> C`, `B -> C`), or invert control with callbacks/`Flow` events. **Tactical fallback** (only when strictly needed): inject `Provider<B>` (or `Lazy<B>`) on one edge to defer instantiation until after construction. |
+
+---
+
+## Section 3 — Modules, Bindings & Qualifiers (Slides 18–26)
+
+### Question 11 — `@Binds` Interface-to-Implementation Binding (`Logger`) (Hands-on)
+
+**Implementation:**
+- [`app/src/main/java/com/example/hiltnotes/logging/Logger.kt`](app/src/main/java/com/example/hiltnotes/logging/Logger.kt) (`interface Logger`, `LogcatLogger`, `FileLogger`)
+- [`app/src/main/java/com/example/hiltnotes/di/LoggingModule.kt`](app/src/main/java/com/example/hiltnotes/di/LoggingModule.kt) (`@Module @InstallIn(SingletonComponent::class) abstract class LoggingModule` with `@Binds`)
+
+**Observation:**
+Every consumer (`MainActivity`, and later `ConnectivityReceiver` in Q24) injects the interface `Logger`, never a concrete class. Changing the single parameter type in `LoggingModule.bindLogger(impl: LogcatLogger)` to `bindLogger(impl: FileLogger)` transparently swaps every consumer across the entire app with **zero** other edits. `@Binds` is preferred over `@Provides` for interface bindings because Dagger generates no extra wrapper factory method.
