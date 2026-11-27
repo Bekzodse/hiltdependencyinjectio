@@ -434,3 +434,20 @@ error: [Dagger/MissingBinding] @dagger.hilt.android.qualifiers.ActivityContext a
 
 **Real bug prevented by each error (2 sentences):**
 Because a `@Singleton` lives for the entire application process while an `Activity` is destroyed and recreated on every rotation or back navigation, holding either an `@ActivityScoped` object or an `@ActivityContext` inside a `@Singleton` would permanently pin the destroyed `Activity` and its entire view hierarchy in memory (a severe memory leak) and cause crashes when using a stale window token. Dagger's compile-time rejection guarantees that shorter-lived Activity-bound objects can never escape upward into longer-lived components.
+
+---
+
+### Question 19 — Multi-Module Split (`:app`, `:feature-notes`, `:data`) (Hands-on)
+
+**Module structure:**
+- `:data` — Room (`AppDatabase`, `NoteDao`, `GitHubUserDao`), Retrofit (`GitHubService`), repositories (`NoteRepository`, `GitHubRepository`), `Logger`, and Hilt modules (`DatabaseModule`, `NetworkModule`, `DispatcherModule`, `LoggingModule`, `Qualifiers`).
+- `:feature-notes` — Compose UI screens and ViewModels (`NotesListScreen`, `NoteDetailScreen`, `GitHubUsersScreen`, `NotesViewModel`, `NoteDetailViewModel`, `GitHubUsersViewModel`).
+- `:app` — `@HiltAndroidApp class App`, `@AndroidEntryPoint class MainActivity`, `AndroidManifest.xml`, depends on both `project(":data")` and `project(":feature-notes")`.
+
+**What fails when removing `implementation(project(":data"))` from `app/build.gradle.kts` (and why):**
+1. **Direct compile failure in `:app`:** Any `:app` code referencing `:data` types (`Logger`, `AppContainer` before Q21, or `NoteRepository` in instrumented tests) fails with `Unresolved reference` because `:feature-notes` depends on `:data` with `implementation` (not `api`), hiding `:data` from `:app`'s compile classpath.
+2. **Hilt component aggregation failure (`[Dagger/MissingBinding]`):** Even if `:app` did not directly import `:data` classes (e.g., if `:feature-notes` only depended on a pure `:domain` interface module while `:data` held `DatabaseModule` and `RepositoryModule`), removing `:data` from `:app`'s dependency graph prevents Hilt's root-module aggregating task (`:app:hiltAggregateDepsDebug`) from seeing `DatabaseModule` (`@InstallIn(SingletonComponent::class)`). As a result, generating `DaggerApp_HiltComponents_SingletonC` in `:app` fails with:
+   ```text
+   error: [Dagger/MissingBinding] com.example.hiltnotes.data.NoteDao cannot be provided without an @Provides-annotated method.
+   ```
+   **Why:** Hilt builds the single complete Dagger component tree inside the `@HiltAndroidApp` module (`:app`), so every Gradle module containing `@Module @InstallIn(...)` bindings must be reachable on `:app`'s dependency graph.
