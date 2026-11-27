@@ -647,3 +647,16 @@ kotlin.UninitializedPropertyAccessException: lateinit property repository has no
     at com.example.hiltnotes.HiltInjectionSmokeTest.repositoryIsInjectedAndPersistsNote(HiltInjectionSmokeTest.kt:32)
 ```
 *(Because `HiltAndroidRule` prepares the test component, but field injection on the test class itself does not occur until you explicitly invoke `hiltRule.inject()` — allowing `@BindValue` fields to be initialized first.)*
+
+---
+
+### Question 29 — `TestDatabaseModule` & Isolated Compose UI Test (Hands-on)
+
+**Implementation:**
+- [`app/src/androidTest/java/com/example/hiltnotes/di/TestDatabaseModule.kt`](app/src/androidTest/java/com/example/hiltnotes/di/TestDatabaseModule.kt) (`@TestInstallIn(components = [SingletonComponent::class], replaces = [DatabaseModule::class])` with `Room.inMemoryDatabaseBuilder`)
+- [`app/src/androidTest/java/com/example/hiltnotes/NotesUiTest.kt`](app/src/androidTest/java/com/example/hiltnotes/NotesUiTest.kt) (with `order = 0` on `HiltAndroidRule` and `order = 1` on `createAndroidComposeRule<MainActivity>()`)
+
+**Why consecutive runs always start empty:**
+1. `HiltAndroidRule` creates a fresh `SingletonComponent` for every `@Test` method, so `TestDatabaseModule.provideInMemoryDatabase(...)` builds a brand-new, empty SQLite in-memory database per test run.
+2. In `NotesUiTest`, `addNote_firstRun_displaysNewNoteInList` enters `"First Run Note"`, clicks **Add Note**, and asserts `onNodeWithText("First Run Note").assertIsDisplayed()`.
+3. Immediately afterward, `addNote_secondRun_startsWithEmptyDatabase` asserts `onNodeWithText("First Run Note").assertDoesNotExist()`, proving zero state leaked between runs and user disk data (`hilt_notes.db`) was never touched.
