@@ -73,3 +73,48 @@ Putting `AppContainer` on `NotesApp : Application` with `by lazy` ensures `creat
   - Manual `ViewModelProvider.Factory` classes (3 factories × ~11 lines): **33 lines**
   - `NotesApp.kt` container bootstrap: **13 lines**
   - Total manual DI wiring overhead: **138 lines** (to be compared directly with the `hilt` branch in Question 21).
+
+---
+
+### Question 5 — Notes App Dependency Graph & Pains of Manual DI (Theoretical, Slide 7)
+
+#### Dependency Graph (`A --> B` means "A needs B")
+
+```mermaid
+flowchart TD
+    NotesListScreen --> NotesViewModel
+    NoteDetailScreen --> NoteDetailViewModel
+    GitHubUsersScreen --> GitHubUsersViewModel
+
+    NotesViewModel --> NoteRepository
+    NoteDetailViewModel --> NoteRepository
+    GitHubUsersViewModel --> GitHubRepository
+
+    NoteRepository["RoomNoteRepository (NoteRepository)"] --> NoteDao
+    NoteDao --> AppDatabase
+    AppDatabase --> Context["Application Context"]
+
+    GitHubRepository["DefaultGitHubRepository (GitHubRepository)"] --> GitHubService
+    GitHubRepository --> GitHubUserDao
+    GitHubUserDao --> AppDatabase
+    GitHubService --> Retrofit
+    Retrofit --> OkHttpClient
+```
+
+#### Concrete Pains from Slide 7 Shown in This Graph
+
+1. **Factory boilerplate (`ViewModelProvider.Factory` everywhere):**
+   - Every ViewModel (`NotesViewModel`, `NoteDetailViewModel`, `GitHubUsersViewModel`) requires its own custom `ViewModelProvider.Factory` plus a helper method on `AppContainer`. Adding a single new constructor parameter forces edits to the ViewModel, its Factory, `AppContainer`, and every call site.
+   - **Hilt verdict:** **Removed entirely** — `@HiltViewModel` + `@Inject constructor` + `hiltViewModel()` generate all factory wiring automatically at compile time.
+
+2. **Manual lifetime & scope management:**
+   - Right now `AppContainer` only gives app-wide singletons (`by lazy`). If a dependency needs to live per-Activity, per-ViewModel, or per-Navigation-Flow (like a draft editor or user session), we must manually create sub-containers (`FlowContainer`), tie them to lifecycle callbacks, and remember to null them out on `onDestroy`/`onCleared` or risk memory leaks.
+   - **Hilt verdict:** **Mostly removed (boilerplate gone), design decision moved to annotations** — Hilt provides built-in lifecycle-aware components (`SingletonComponent`, `ActivityRetainedComponent`, `ViewModelComponent`, `ActivityComponent`) and cleans them up automatically, though *you* still must choose the right scope.
+
+3. **Construction-order & transitive dependency plumbing:**
+   - `AppContainer` must manually wire the chain `Context -> AppDatabase -> NoteDao -> RoomNoteRepository` and `OkHttpClient -> Retrofit -> GitHubService -> DefaultGitHubRepository`, and pass `container` from `NotesApp` into `MainActivity` and down into `ManualNotesNavHost`.
+   - **Hilt verdict:** **Removed for constructor-injected classes; moved to `@Module` for third-party / interface bindings** — Hilt resolves arbitrary transitive chains automatically, while creation recipes for third-party types (`OkHttpClient`, `Retrofit`, `Room`) move from `AppContainer` into `@Provides`/`@Binds` modules.
+
+4. **Compile-time safety vs runtime errors (bonus pain):**
+   - In manual DI, forgetting to initialize `container` or passing the wrong `Class<T>` to a `Factory` fails only at runtime (`UninitializedPropertyAccessException` / `IllegalArgumentException`).
+   - **Hilt verdict:** **Removed (shifted to compile time)** — Dagger validates the entire dependency graph, scopes, and acyclicity during compilation.
