@@ -7,16 +7,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.example.hiltnotes.di.AppContainer
 import com.example.hiltnotes.experiments.A
 import com.example.hiltnotes.experiments.ActivityRetainedCounter
 import com.example.hiltnotes.experiments.SingletonCounter
@@ -34,35 +34,23 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
-    @Inject
-    lateinit var logger: Logger
-
-    @Inject
-    lateinit var firstA: A
-
-    @Inject
-    lateinit var secondA: A
-
-    @Inject
-    lateinit var unscopedCounter: UnscopedCounter
-
-    @Inject
-    lateinit var singletonCounter: SingletonCounter
-
-    @Inject
-    lateinit var activityRetainedCounter: ActivityRetainedCounter
+    @Inject lateinit var logger: Logger
+    @Inject lateinit var firstA: A
+    @Inject lateinit var secondA: A
+    @Inject lateinit var unscopedCounter: UnscopedCounter
+    @Inject lateinit var singletonCounter: SingletonCounter
+    @Inject lateinit var activityRetainedCounter: ActivityRetainedCounter
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         logger.log(
             "MainActivity",
-            "Q9 same A instance? ${firstA === secondA} | Q16 counters: unscoped=#${unscopedCounter.instanceId}, singleton=#${singletonCounter.instanceId}, retained=#${activityRetainedCounter.instanceId}"
+            "Q9 same A? ${firstA === secondA} | Q16 unscoped=#${unscopedCounter.instanceId}, singleton=#${singletonCounter.instanceId}, retained=#${activityRetainedCounter.instanceId}"
         )
-        val container = (application as App).container
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    ManualNotesNavHost(container)
+                    HiltNotesNavHost()
                 }
             }
         }
@@ -70,11 +58,11 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun ManualNotesNavHost(container: AppContainer) {
+fun HiltNotesNavHost() {
     val navController = rememberNavController()
     NavHost(navController = navController, startDestination = "notes") {
         composable("notes") {
-            val vm: NotesViewModel = viewModel(factory = container.notesViewModelFactory())
+            val vm: NotesViewModel = hiltViewModel()
             val notes by vm.notes.collectAsState()
             NotesListScreen(
                 notes = notes,
@@ -89,9 +77,8 @@ private fun ManualNotesNavHost(container: AppContainer) {
             arguments = listOf(navArgument("noteId") { type = NavType.LongType })
         ) { entry ->
             val noteId = entry.arguments?.getLong("noteId") ?: -1L
-            val vm: NoteDetailViewModel = viewModel(
-                factory = container.noteDetailViewModelFactory(noteId)
-            )
+            val vm: NoteDetailViewModel = hiltViewModel()
+            LaunchedEffect(noteId) { vm.load(noteId) }
             val note by vm.note.collectAsState()
             NoteDetailScreen(
                 note = note,
@@ -99,7 +86,7 @@ private fun ManualNotesNavHost(container: AppContainer) {
             )
         }
         composable("github") {
-            val vm: GitHubUsersViewModel = viewModel(factory = container.gitHubUsersViewModelFactory())
+            val vm: GitHubUsersViewModel = hiltViewModel()
             val users by vm.users.collectAsState()
             val error by vm.error.collectAsState()
             GitHubUsersScreen(

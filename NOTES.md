@@ -472,3 +472,30 @@ Adding `@Singleton` is wrong whenever an object:
 4. **Is cheap and stateless** — scoping adds `DoubleCheck` locking overhead and keeps objects alive in memory for the entire app process for zero benefit.
 
 Scoping is an architectural contract about **object lifetime, shared identity, memory footprint, and concurrency** — default to **unscoped** and add a scope only when you explicitly need shared state or amortized construction cost over that exact component lifetime.
+
+---
+
+## Section 5 — Hilt in Android: ViewModel, Receivers & Navigation (Slides 30–31)
+
+### Question 21 — Migrating Notes App to Hilt on Branch `hilt` vs `manual-di` (Hands-on)
+
+**Branch:** `hilt` (merged fast-forward to `main`)
+
+**What changed:**
+- Deleted `AppContainer.kt` (`-92` lines) and all three manual `ViewModelProvider.Factory` classes (`-32` lines).
+- Zero `ApiInstance` or `DatabaseProvider` classes exist.
+- `App.kt` reduced to 1 class declaration (`@HiltAndroidApp class App : Application()`).
+- Added [`data/src/main/java/com/example/hiltnotes/di/RepositoryModule.kt`](data/src/main/java/com/example/hiltnotes/di/RepositoryModule.kt) with `@Binds` for `NoteRepository` and `GitHubRepository`.
+- Annotated `NotesViewModel`, `NoteDetailViewModel`, and `GitHubUsersViewModel` with `@HiltViewModel` + `@Inject constructor`, and replaced `viewModel(factory = ...)` with `hiltViewModel()` in `MainActivity.kt`.
+
+**Line Count Comparison (`manual-di` vs `hilt`):**
+
+| Component | `manual-di` branch | `hilt` branch | Delta |
+|---|---:|---:|---:|
+| `App.kt` / `NotesApp.kt` | 13 lines | 7 lines | **-6** |
+| `AppContainer.kt` | 92 lines | 0 (deleted) | **-92** |
+| ViewModels + Factories (3 files) | 135 lines (incl. 33 factory lines) | 103 lines (0 factory lines) | **-32** |
+| Declarative Hilt Modules (`Database`, `Network`, `Repository`, `Dispatcher`) | 0 (monolithic in `AppContainer`) | 169 lines (modular, includes dual `OkHttpClient`, `@BaseUrl`, `@IoDispatcher`) | +169 |
+| `MainActivity` NavHost wiring (`container` plumbing) | Requires passing `container` + 3 factory calls | Zero container plumbing; `hiltViewModel()` | Cleaner call sites |
+
+**Takeaway:** For a tiny 3-screen app, total lines across modules are similar (with extra features like dual `OkHttpClient`s and injectable dispatchers in `hilt`), **but** every new ViewModel or constructor dependency now costs **0 lines** of factory/container wiring instead of editing 3–4 files, and every module can be swapped independently in tests via `@TestInstallIn`.

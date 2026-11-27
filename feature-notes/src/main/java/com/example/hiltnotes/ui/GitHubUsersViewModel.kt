@@ -1,18 +1,20 @@
 package com.example.hiltnotes.ui
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.hiltnotes.data.GitHubRepository
 import com.example.hiltnotes.data.GitHubUserEntity
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-class GitHubUsersViewModel(
+@HiltViewModel
+class GitHubUsersViewModel @Inject constructor(
     private val repository: GitHubRepository
 ) : ViewModel() {
 
@@ -32,17 +34,5 @@ class GitHubUsersViewModel(
             runCatching { repository.refreshUsers() }
                 .onFailure { _error.value = it.message ?: "Failed to load GitHub users" }
         }
-    }
-}
-
-class GitHubUsersViewModelFactory(
-    private val repository: GitHubRepository
-) : ViewModelProvider.Factory {
-    @Suppress("UNCHECKED_CAST")
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(GitHubUsersViewModel::class.java)) {
-            return GitHubUsersViewModel(repository) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }
 }
