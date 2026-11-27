@@ -300,3 +300,22 @@ NetworkModule: creating Retrofit
 NetworkModule: creating GitHubService
 ```
 No `ApiInstance` singleton object exists anywhere in the project.
+
+---
+
+### Question 13 — `DatabaseModule` & `@ApplicationContext` Qualifier (Hands-on)
+
+**Implementation:**
+- [`app/src/main/java/com/example/hiltnotes/di/DatabaseModule.kt`](app/src/main/java/com/example/hiltnotes/di/DatabaseModule.kt)
+
+**Error when removing `@ApplicationContext` from `provideDatabase(context: Context)`:**
+```text
+error: [Dagger/MissingBinding] android.content.Context cannot be provided without an @Provides-annotated method.
+      android.content.Context is requested at
+          [App_HiltComponents.SingletonC] com.example.hiltnotes.di.DatabaseModule.provideDatabase(context)
+      com.example.hiltnotes.data.AppDatabase is injected at
+          [App_HiltComponents.SingletonC] com.example.hiltnotes.di.DatabaseModule.provideNoteDao(db)
+```
+
+**Why a plain `Context` parameter is ambiguous:**
+In Android, `Context` can refer to either the process-wide **Application `Context`** (`@ApplicationContext`) or a short-lived UI-bound **Activity `Context`** (`@ActivityContext`, which carries a theme/window and leaks the Activity if held beyond `onDestroy()`). Hilt deliberately refuses to provide an unqualified `Context` so developers must explicitly declare which lifetime they need — preventing accidental Activity memory leaks inside `@Singleton` objects like Room databases.
